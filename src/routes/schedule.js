@@ -106,7 +106,7 @@ router.post("/list", async (req, res) => {
   const getEndDate = (startTime, period) => {
     console.log(startTime);
     // Remove microseconds from the startTime string
-    const startTimeStr = startTime.split(".")[0]; // This removes the microseconds part
+    const startTimeStr = startTime?.split(".")[0] ?? startTime; // This removes the microseconds part
     const start = new Date(startTimeStr); // Now the date string is compatible with the Date constructor
 
     if (isNaN(start.getTime())) {
