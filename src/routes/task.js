@@ -5,7 +5,9 @@ const TaskSchema = require("../models/task");
 
 router.get("/", async (req, res) => {
   try {
-    let tasks = await TaskSchema.find();
+    let tasks = await TaskSchema.find()
+      .populate("userID", "email preferredName")
+      .populate("assignTo", "email preferredName");
     res.send({ success: true, tasks });
   } catch (err) {
     console.log("Task Fetching Error: ", err);
@@ -115,10 +117,10 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (err) {
     console.log("Task Deleting Error: ", err);
+    res.status(500).send({
+      message: "Error deleting the task",
+    });
   }
-  res.status(500).send({
-    message: "Error deleting the task",
-  });
 
   // res.send("Task deleted successfully!");
 });

@@ -22,6 +22,58 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.post("/update", async (req, res) => {
+  try {
+    await Locations.updateOne(
+      {
+        _id: req.body.id,
+      },
+      {
+        $set: {
+          ...req.body.updatedLocation,
+        },
+      }
+    );
+
+    res.send({
+      success: true,
+      message: "updated",
+    });
+  } catch (err) {
+    console.log(err);
+    res.send({
+      success: false,
+      message: err,
+    });
+  }
+});
+
+router.post("/update", async (req, res) => {
+  try {
+    await Locations.updateOne(
+      {
+        _id: req.body.id,
+      },
+      {
+        $set: {
+          archive: true,
+        },
+      }
+    );
+
+    res.send({
+      success: true,
+      message: "updated",
+    });
+  } catch (err) {
+    console.log(err);
+    res.send({
+      success: false,
+      message: err,
+    });
+  }
+});
+
 router.get("/", (req, res) => {
   Locations.find({}).then((lcs) => {
     res.send({

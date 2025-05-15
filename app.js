@@ -47,6 +47,7 @@ const task = require("./src/routes/task");
 const newsfeed = require("./src/routes/newsfeed");
 const leave = require("./src/routes/leave");
 const unavailable = require("./src/routes/unavailable");
+const report = require("./src/routes/report");
 
 // Admin business router
 // User task router
@@ -57,11 +58,15 @@ app.use("/task", task);
 app.use("/newsfeed", newsfeed);
 app.use("/leave", leave);
 app.use("/unavailable", unavailable);
+app.use("/report", report);
 
 // Deputy Frontend
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // Catch-all handler for any other routes
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));

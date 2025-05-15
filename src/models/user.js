@@ -48,6 +48,10 @@ const UserSchema = new mongoose.Schema(
     hoursPerPeriod: { type: Number },
     daysPerPeriod: { type: Number },
     stressProfie: { type: String },
+
+    // * Basic Access
+    allowed: { type: Boolean, default: false },
+    work_available: { type: Boolean, default: false },
   },
   {
     timestamps: true,

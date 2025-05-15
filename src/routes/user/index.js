@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
+const { utcToZonedTime, format } = require("date-fns-tz");
 
 // * Define DB Models
 const Users = require("../../models/user");
@@ -17,13 +18,36 @@ const generateRandomCode = (length = 8) => {
   return randomCode;
 };
 
+router.get("/", async (req, res) => {
+  Users.find({})
+    .populate("payratesID")
+    .populate("locationID")
+    .then((users) => {
+      res.send({
+        users: users,
+      });
+    });
+});
+
 router.post("/register", async (req, res) => {
-  const { firstName, email, lastName, phone, password } = req.body;
+  const {
+    firstName,
+    email,
+    lastName,
+    phone,
+    password,
+    birthday,
+    pronoun,
+    gender,
+    preferredName,
+  } = req.body;
+
+  console.log(req.body);
 
   try {
     const isEmailExist = await Users.findOne({ email: email });
     if (isEmailExist) {
-      return res.send({ status: 0, msg: "exsitEmail" });
+      return res.send({ success: false, message: "User already registerd!" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -34,14 +58,18 @@ router.post("/register", async (req, res) => {
       preferredName: `${firstName.charAt(0)}. ${lastName}`,
       phone: phone,
       email: email,
-      hashedPass: hashedPassword,
+      birthday: birthday,
+      pronoun: pronoun,
+      gender: gender,
+      preferredName: preferredName,
+      hashPass: hashedPassword,
     });
 
     await newUser.save();
 
     console.log(`👨 NEW USER: ${newUser.email} REGISRED`);
 
-    res.send({ status: 1, msg: "successRegistered" });
+    res.send({ success: true, msg: "successRegistered" });
   } catch (error) {
     console.log("💥 Register Error: ", error);
     res.send({ status: 0, msg: "failedReq" });
@@ -92,6 +120,13 @@ router.post("/login", async (req, res) => {
     const user = await Users.findOne({ email: email });
     if (!user) return res.send({ success: false, message: "invalidLoginInfo" });
 
+    if (!user.allowed)
+      return res.send({
+        success: false,
+        message: `You are not allowed to login this site yet.
+        Please contact with admin!`,
+      });
+
     console.log(password, user.hashPass);
 
     const checkPass = await bcrypt.compare(password, user.hashPass);
@@ -128,10 +163,10 @@ router.post("/update", async (req, res) => {
 
     console.log(`👨 USER: ${updatedUser.email} UPDATED`);
 
-    res.send({ success: true, msg: "successUpdated" });
+    res.send({ success: true, message: "Updated!" });
   } catch (error) {
     console.log("💥 Update Error: ", error);
-    res.send({ status: 0, msg: "failedReq" });
+    res.send({ status: 0, message: "Failed!" });
   }
 });
 
@@ -158,12 +193,45 @@ router.post("/change_password", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
-  Users.find({}).then((users) => {
-    res.send({
-      users: users,
-    });
+// * Current Server TIme
+router.get("/server_time", (req, res) => {
+  const now = Date.now();
+  const gaps = 3600 * 1000;
+  const irelandTIme = new Date(now + gaps);
+
+  res.json({
+    success: true,
+    serverTime: irelandTIme,
   });
+});
+
+// * Pay Rates Routes
+router.post("/payrate/add", async (req, res) => {
+  try {
+    let user = await Users.findOne({ _id: req.body.userID });
+
+    let newPayrates = new PayRates(req.body);
+    await newPayrates.save();
+
+    user.payratesID = newPayrates._id;
+    await user.save();
+    res.send({ success: true, message: "successAdded" });
+  } catch (err) {
+    console.log("💥 Pay Rate Error: ", err);
+    res.send({ success: false, message: "failedReq" });
+  }
+});
+
+router.post("/payrates/update", async (req, res) => {
+  try {
+    let payrate = await PayRates.findByIdAndUpdate(req.body.payrateID, {
+      ...req.body.updatedData,
+    });
+    res.send({ success: true, message: "Succesfully Updated!" });
+  } catch (err) {
+    console.log("💥 Payrate Update Error: ", err);
+    res.send({ success: false, message: "Failed to Updated" });
+  }
 });
 
 router.get("/:id", async (req, res) => {
@@ -222,35 +290,6 @@ router.delete("/:id", async (req, res) => {
   } catch (error) {
     console.log("💥 Delete Error: ", error);
     res.send({ success: false, message: "failedReq" });
-  }
-});
-
-// * Pay Rates Routes
-router.post("/payrate/add", async (req, res) => {
-  try {
-    let user = await Users.findOne({ _id: req.body.userID });
-
-    let newPayrates = new PayRates(req.body);
-    await newPayrates.save();
-
-    user.payratesID = newPayrates._id;
-    await user.save();
-    res.send({ success: true, message: "successAdded" });
-  } catch (err) {
-    console.log("💥 Pay Rate Error: ", err);
-    res.send({ success: false, message: "failedReq" });
-  }
-});
-
-router.post("/payrates/update", async (req, res) => {
-  try {
-    let payrate = await PayRates.findByIdAndUpdate(req.body.payrateID, {
-      ...req.body.updatedData,
-    });
-    res.send({ success: true, message: "Succesfully Updated!" });
-  } catch (err) {
-    console.log("💥 Payrate Update Error: ", err);
-    res.send({ success: false, message: "Failed to Updated" });
   }
 });
 

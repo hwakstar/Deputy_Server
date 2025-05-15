@@ -6,6 +6,10 @@ const LocationSchema = new mongoose.Schema(
     name: { type: String, required: true },
     address: { type: String, required: true },
     area: { type: String, required: true },
+    allow_offer: { type: Boolean, default: false },
+    allow_swap: { type: Boolean, default: false },
+    allow_approved: { type: Boolean, default: false },
+    archive: { type: Boolean, default: false },
   },
   {
     timestamps: true,
