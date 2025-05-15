@@ -51,24 +51,16 @@ const report = require("./src/routes/report");
 
 // Admin business router
 // User task router
-app.use("/user", user);
-app.use("/location", location);
-app.use("/schedule", schedule);
-app.use("/task", task);
-app.use("/newsfeed", newsfeed);
-app.use("/leave", leave);
-app.use("/unavailable", unavailable);
-app.use("/report", report);
+app.use("/api/user", user);
+app.use("/api/location", location);
+app.use("/api/schedule", schedule);
+app.use("/api/task", task);
+app.use("/api/newsfeed", newsfeed);
+app.use("/api/leave", leave);
+app.use("/api/unavailable", unavailable);
+app.use("/api/report", report);
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-// Deputy Frontend
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
 
 // Catch-all handler for any other routes
 app.get("*", (req, res) => {
