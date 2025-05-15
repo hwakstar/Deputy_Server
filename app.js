@@ -60,12 +60,15 @@ app.use("/leave", leave);
 app.use("/unavailable", unavailable);
 app.use("/report", report);
 
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Deputy Frontend
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 // Catch-all handler for any other routes
 app.get("*", (req, res) => {
