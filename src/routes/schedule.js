@@ -89,26 +89,26 @@ router.post("/update", async (req, res) => {
 
   let conflict;
 
-  if (
-    mongoose.isValidObjectId(req.body.updatedData.userID) &&
-    req.body.manual
-  ) {
-    conflict = await Schedule.findOne({
-      userID: req.body.updatedData.userID,
-      locationID: req.body.updatedData.locationID,
-      $or: [
-        {
-          startTime: { $lt: req.body.updatedData.endTime },
-          endTime: { $gt: req.body.updatedData.startTime },
-        },
-      ],
-    });
+  if (mongoose.isValidObjectId(req.body.updatedData.userID)) {
+    if (!req.body.manual) {
+      const query = {
+        userID: req.body.updatedData.userID,
+        $or: [
+          {
+            startTime: { $lt: req.body.updatedData.endTime },
+            endTime: { $gt: req.body.updatedData.startTime },
+          },
+        ],
+        _id: { $ne: req.body._id },
+      };
+      conflict = await Schedule.findOne(query);
+    }
   }
 
-  console.log("💥 Conflict");
-  console.log(conflict);
-
   if (conflict) {
+    console.log("💥 Conflict");
+    console.log(conflict);
+
     return res.send({
       success: false,
       message: "Schedule conflict!",
@@ -117,7 +117,7 @@ router.post("/update", async (req, res) => {
 
   try {
     if (req.body._id !== "") {
-      console.log(req.body._id);
+      console.log("🆔 Schedule ID: ", req.body._id);
 
       let target = await Schedule.findOne({
         _id: req.body._id,
@@ -125,12 +125,15 @@ router.post("/update", async (req, res) => {
 
       console.log(target);
 
+      // * Creating for Open Shift, Open_Claim Shift
       if (mongoose.isValidObjectId(req.body.updatedData.userID)) {
         target.userID = req.body.updatedData.userID;
       } else {
         target.userID = null;
         target.type = req.body.updatedData.userID;
       }
+
+      console.log(req.body.updatedData);
 
       target.locationID = req.body.updatedData.locationID;
       target.startTime = req.body.updatedData.startTime;
@@ -174,6 +177,140 @@ router.post("/update_manual", async (req, res) => {
   }
 });
 
+// * Copy to Next Week
+// ! Admin -> Server
+// ! @params schedules
+router.post("/copy_to_next", async (req, res) => {
+  try {
+    const userMap = {};
+    const locationMap = {};
+
+    req.body.schedules.forEach((item) => {
+      if (item.userID && item.userID._id) {
+        userMap[item.userID._id] = item.userID;
+      }
+      if (item.locationID && item.locationID._id) {
+        locationMap[item.locationID._id] = item.locationID;
+      }
+    });
+
+    const schedules = req.body.schedules.map((item) => {
+      // Destructure to remove _id and id
+      const { _id, id, userID, locationID, type, ...rest } = item;
+
+      return {
+        ...rest,
+        userID: userID && userID._id ? userID._id : userID,
+        locationID: locationID && locationID._id ? locationID._id : locationID,
+      };
+    });
+    console.log(schedules);
+    const period = req.body.period;
+
+    let successCount = 0;
+    let conflictCount = 0;
+    let conflictDetails = [];
+
+    for (const schedule of schedules) {
+      // Calculate new times
+      const newStartTime = new Date(schedule.startTime);
+      newStartTime.setDate(newStartTime.getDate() + period);
+
+      const newEndTime = new Date(schedule.endTime);
+      newEndTime.setDate(newEndTime.getDate() + period);
+
+      const newBreakStartTime = schedule.breakStartTime
+        ? new Date(schedule.breakStartTime).setDate(
+            new Date(schedule.breakStartTime).getDate() + period
+          )
+        : null;
+
+      const newBreakEndTime = schedule.breakEndTime
+        ? new Date(schedule.breakEndTime).setDate(
+            new Date(schedule.breakEndTime).getDate() + period
+          )
+        : null;
+
+      // Check for conflicts
+      const conflict = await Schedule.findOne({
+        userID: schedule.userID,
+        // locationID: schedule.locationID._id,
+        $or: [
+          {
+            startTime: { $lt: newEndTime },
+            endTime: { $gt: newStartTime },
+          },
+        ],
+      });
+
+      if (conflict) {
+        conflictCount++;
+        conflictDetails.push({
+          userID: schedule.userID,
+          locationID: schedule.locationID,
+          startTime: newStartTime,
+          endTime: newEndTime,
+        });
+        continue; // Skip saving this schedule
+      }
+
+      // Create and save new schedule
+      const newSchedule = new Schedule({
+        ...schedule,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        breakStartTime: newBreakStartTime,
+        breakEndTime: newBreakEndTime,
+      });
+
+      await newSchedule.save();
+      successCount++;
+    }
+
+    conflictDetails = conflictDetails.map((item) => ({
+      ...item,
+      userID: userMap[item.userID] || item.userID, // recover full object if available
+      locationID: locationMap[item.locationID] || item.locationID,
+      startTime: new Date(item.startTime).toISOString(),
+      endTime: new Date(item.endTime).toISOString(),
+    }));
+
+    res.send({
+      success: true,
+      message: `Schedules copied: ${successCount}, Conflicts: ${conflictCount}`,
+      copied: successCount,
+      conflicts: conflictCount,
+      conflictDetails,
+    });
+  } catch (err) {
+    console.log("💥 Copy Error: ", err);
+    res.status(500).send({ success: false, message: "Server error." });
+  }
+});
+
+router.post("/delete_list", async (req, res) => {
+  try {
+    // Find schedules to be deleted (optional, if you want to return them)
+
+    // Delete the schedules
+    const deleteResult = await Schedule.deleteMany({
+      startTime: {
+        $gte: req.body.startTime,
+        $lt: req.body.endTime,
+      },
+    });
+
+    res.send({
+      success: true,
+      deletedCount: deleteResult.deletedCount,
+      message: `${deleteResult.deletedCount} Schedules deleted successfully!`,
+    });
+  } catch (err) {
+    console.log("💥 Delete List Error: ", err);
+    res.status(500).send({ success: false, message: "Server error" });
+  }
+});
+
 router.post("/check_today_shift", async (req, res) => {
   console.log("✅ Check Today Shift: ", req.body.userID);
 
@@ -212,9 +349,6 @@ router.post("/check_today_shift", async (req, res) => {
 // ! Web -> Server
 // ! not required userID, period is flexible
 router.post("/list", async (req, res) => {
-  console.log(req.body);
-  console.log("dddddddddd");
-
   const { startTime, endTime, userID, admin } = req.body;
 
   try {
@@ -229,7 +363,7 @@ router.post("/list", async (req, res) => {
       schedules = await Schedule.find({
         startTime: {
           $gte: startTime,
-          $lt: endTime,
+          $lte: endTime,
         },
         userID: userID,
       })
@@ -314,6 +448,10 @@ router.post("/list", async (req, res) => {
     for (const item of unavailabes) {
       unavailablesWithType.push({ ...item.toObject(), type: "unavailable" });
     }
+
+    console.log(schedulesWithType.length);
+    console.log(leavesWithType.length);
+    console.log(unavailablesWithType.length);
 
     res.send({
       success: true,
